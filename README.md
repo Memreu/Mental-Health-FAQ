@@ -1,69 +1,131 @@
-# Akbank GenAI Bootcamp: RAG Tabanlı Mental Sağlık Chatbotu
+# 🧠 RAG Tabanlı Ruh Sağlığı Chatbotu
 
-Bu proje, Akbank GenAI Bootcamp programı için geliştirilmiş, Retrieval Augmented Generation (RAG) mimarisini kullanan interaktif bir chatbot uygulamasıdır.
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/LangChain-RAG-1C3C3C?logo=langchain&logoColor=white" alt="LangChain">
+  <img src="https://img.shields.io/badge/Google-Gemini-8E75B2?logo=googlegemini&logoColor=white" alt="Gemini">
+  <img src="https://img.shields.io/badge/FAISS-vektör_arama-2E5EAA" alt="FAISS">
+  <img src="https://img.shields.io/badge/Streamlit-arayüz-FF4B4B?logo=streamlit&logoColor=white" alt="Streamlit">
+  <img src="https://img.shields.io/badge/lisans-MIT-lightgrey" alt="MIT">
+</p>
 
-## Projenin Amacı
+Ruh sağlığıyla ilgili sorulara **yalnızca güvenilir bir bilgi havuzundaki** cevaplara dayanarak yanıt veren, **Retrieval-Augmented Generation (RAG)** mimarisiyle geliştirilmiş bir sohbet asistanı. *Akbank GenAI Bootcamp* kapsamında geliştirildi.
 
-Bu projenin temel amacı, "Mental Health FAQ" (Ruh Sağlığı Sıkça Sorulan Sorular) veri setini bir bilgi havuzu olarak kullanarak, kullanıcıların ruh sağlığıyla ilgili sorularına bilgilendirici ve destekleyici yanıtlar sunan bir yapay zeka asistanı oluşturmaktır.
+Asistan, sorulan konu bilgi havuzunda yoksa tahmin yürütmek yerine açıkça **"Bu konuda bilgim bulunmuyor."** diyor. Hassas bir alanda halüsinasyonu önlemek projenin ana tasarım hedefi.
 
-Chatbot, cevaplarını *sadece* sağlanan veri setinin kapsamıyla sınırlandıracak ve bilgi havuzunda bulunmayan konularda spekülasyon yapmayacak (halüsinasyon görmeyecek) şekilde tasarlanmıştır.
+> 🇬🇧 **In English:** A Retrieval-Augmented Generation chatbot that answers mental-health questions using only a curated FAQ knowledge base. Answers are embedded with Google embeddings and indexed in FAISS; for each question the top-3 most similar passages are retrieved and passed to Gemini with a grounding prompt that forces the model to say *"I don't have information on this"* when the context does not contain the answer. The app is served through a Streamlit chat interface, built with LangChain's LCEL.
 
-## Veri Seti Hakkında Bilgi
+<details>
+<summary><b>📑 İçindekiler</b></summary>
 
-Projede, Kaggle üzerinde bulunan [Mental Health FAQ Dataset](https://www.kaggle.com/datasets/narendgeek/mental-health-faq-for-chatbot) veri seti kullanılmıştır. Bu veri seti, ruh sağlığı konularında (`Questions`) ve bu sorulara karşılık gelen açıklayıcı (`Answers`) metin çiftlerini içermektedir.
+- [Mimari](#mimari)
+- [Öne çıkan özellikler](#öne-çıkan-özellikler)
+- [Teknoloji yığını](#teknoloji-yığını)
+- [Kurulum ve çalıştırma](#kurulum-ve-çalıştırma)
+- [Klasör yapısı](#klasör-yapısı)
+- [Veri](#veri)
+- [Sınırlılıklar ve sonraki adımlar](#sınırlılıklar-ve-sonraki-adımlar)
 
-RAG mimarisinin "Retrieval" (Geri Getirme) adımı için, `Answers` sütunundaki her bir açıklayıcı metin, anlamsal arama yapılabilmesi amacıyla vektör veritabanına yüklenecek ayrı bir "doküman" olarak kabul edilmiştir.
+</details>
 
-## Çözüm Mimarisi ve Teknoloji Dökümü
+## Mimari
 
-Proje, RAG (Retrieval Augmented Generation) mimarisini temel almaktadır. Çözüm, Streamlit kullanılarak interaktif bir web arayüzü üzerinden sunulmuştur.
+```mermaid
+flowchart LR
+    subgraph prep["📚 Bilgi havuzu (bir kez, önbelleğe alınır)"]
+        A[Mental Health FAQ<br/>CSV] --> B[Her cevap =<br/>1 doküman]
+        B --> C[Google<br/>embedding modeli]
+        C --> D[(FAISS<br/>vektör indeksi)]
+    end
+    subgraph query["💬 Her soru için"]
+        Q[Kullanıcı sorusu] --> E[Soru embedding'i]
+        E --> D
+        D -->|en benzer 3 parça| F[Bağlam]
+        F --> P[Prompt şablonu<br/>yalnızca bağlamı kullan]
+        Q --> P
+        P --> G[Gemini LLM]
+        G --> H[Yanıt<br/>Streamlit sohbet ekranı]
+    end
+```
 
-**Kullanılan Teknolojiler:**
+1. **Hazırlık:** FAQ veri setindeki her cevap ayrı bir doküman olarak vektöre çevrilir ve FAISS indeksine yazılır. `st.cache_resource` sayesinde bu işlem uygulama açılışında yalnızca bir kez yapılır.
+2. **Geri getirme (Retrieval):** Kullanıcının sorusu aynı embedding modeliyle vektöre çevrilir ve anlamca en yakın **3** cevap bulunur.
+3. **Üretim (Generation):** Bulunan cevaplar bağlam olarak, kullanıcının sorusuyla birlikte Gemini'ye gönderilir. Prompt, modelin bağlam dışına çıkmasını yasaklar.
 
-* **RAG Pipeline Framework:** LangChain
-* **Generation Model:** Google Gemini API (`gemini-pro`)
-* **Embedding Model:** Google (`models/embedding-001`)
-* **Vektör Veritabanı:** FAISS (Yüksek hızlı anlamsal arama için lokal bellek tabanlı)
-* **Web Arayüzü:** Streamlit
+## Öne çıkan özellikler
 
-**Mimari Akışı:**
-Kullanıcının girdiği soru (Query), öncelikle `GoogleGenerativeAIEmbeddings` modeli ile bir vektör temsiline dönüştürülür. Bu vektör, `FAISS` veritabanında anlamsal olarak en yakın doküman parçalarını (ilgili cevap metinlerini) bulmak için kullanılır. Elde edilen bu dokümanlar "Bağlam" (Context) olarak, kullanıcının orijinal sorusuyla birlikte `ChatGoogleGenerativeAI` (Gemini Pro) modeline bir prompt şablonu aracılığıyla sunulur. Dil modeli, bu bağlama dayanarak nihai, tutarlı ve doğru yanıtı üretir.
+| | |
+|---|---|
+| 🛡️ **Halüsinasyon kontrolü** | Bağlamda cevap yoksa model sabit bir "bilgim yok" yanıtı verir |
+| ⚡ **Hızlı arama** | FAISS ile bellek içi anlamsal arama |
+| 🔗 **LCEL zinciri** | `retriever → prompt → llm → parser` şeklinde okunabilir, modüler RAG akışı |
+| 💬 **Sohbet geçmişi** | Streamlit `session_state` ile oturum boyunca mesajlar korunur |
+| 🔐 **Güvenli anahtar yönetimi** | API anahtarı koda değil `.streamlit/secrets.toml` dosyasına yazılır ve git'e eklenmez |
 
-## Elde Edilen Sonuçlar
+## Teknoloji yığını
 
-Sonuç olarak, "Mental Health FAQ" veri seti ile beslenen, RAG tabanlı bir chatbot başarıyla geliştirilmiştir. Uygulama, kullanıcının sorduğu sorulara *sadece veri setindeki bağlamı* kullanarak yanıt vermektedir. Bilgi havuzunda bulunmayan sorular için "Bu konuda bilgim bulunmuyor." yanıtını vererek, modelin halüsinasyon görmesi (uydurma cevaplar vermesi) etkin bir şekilde engellenmiştir.
+| Katman | Araç |
+|---|---|
+| RAG çatısı | LangChain (LCEL) |
+| Dil modeli | Google Gemini (`ChatGoogleGenerativeAI`) |
+| Embedding | Google Generative AI Embeddings |
+| Vektör veritabanı | FAISS (yerel, bellek içi) |
+| Arayüz | Streamlit |
+| Veri işleme | pandas |
 
-## Lokal Çalıştırma Rehberi
+## Kurulum ve çalıştırma
 
-Projenin lokal makinenizde çalıştırılabilmesi için gereken adımlar:
+```bash
+git clone https://github.com/Memreu/Mental-Health-FAQ.git
+cd Mental-Health-FAQ
 
-1.  Bu projeyi klonlayın veya GitHub'dan ZIP olarak indirin.
-2.  Proje ana dizininde bir Python sanal ortamı (virtual env) oluşturun:
-    ```bash
-    python -m venv venv
-    ```
-3.  Oluşturulan sanal ortamı aktive edin:
-    * Windows: `.\venv\Scripts\activate`
-    * Mac/Linux: `source venv/bin/activate`
-4.  Gerekli tüm kütüphaneleri `requirements.txt` dosyasından kurun:
-    ```bash
-    pip install -r requirements.txt
-    ```
-5.  API anahtarınızı güvenli bir şekilde saklamak için proje ana dizininde `.streamlit` adında bir klasör oluşturun.
-6.  Bu yeni klasörün içine `secrets.toml` adında bir dosya oluşturun ve Gemini API anahtarınızı aşağıdaki formatta ekleyin:
-    ```toml
-    GOOGLE_API_KEY = "SIZIN_API_ANAHTARINIZ_BURAYA"
-    ```
-7.  Uygulamayı başlatın:
-    ```bash
-    streamlit run app.py
-    ```
-    Tarayıcınızda otomatik olarak `http://localhost:8501` adresi açılacaktır.
+python -m venv venv
+source venv/bin/activate          # Windows: .\venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-## Web Arayüzü ve Kullanıcı Deneyimi
+**1. Veriyi ekle:** Kaggle'daki [Mental Health FAQ for Chatbot](https://www.kaggle.com/datasets/narendgeek/mental-health-faq-for-chatbot) veri setini indirip `Mental_Health_FAQ.csv` dosyasını proje klasörüne koy.
 
-**Deploy Linki (Web Linki):**
-Bu proje öncelikle lokalde çalıştırılmak üzere geliştirilmiştir. Projeyi kalıcı bir web linki üzerinden yayınlamak (deploy) için, bu GitHub reposu [Streamlit Community Cloud](https://streamlit.io/cloud) veya [Hugging Face Spaces](https://huggingface.co/spaces) gibi ücretsiz platformlara kolayca bağlanabilir.
+**2. API anahtarını tanımla:** [Google AI Studio](https://aistudio.google.com/app/apikey)'dan bir Gemini API anahtarı al ve şu dosyayı oluştur:
 
-**Arayüz Kullanımı:**
-Uygulama başlatıldığında, kullanıcıyı temiz bir sohbet arayüzü karşılar. Kullanıcı, sayfanın altındaki metin giriş alanına ruh sağlığıyla ilgili bir soru yazıp gönderdiğinde, RAG pipeline'ı tetiklenir. Modelin ürettiği yanıt, sohbet ekranında asistan mesajı olarak görüntülenir.
+```toml
+# .streamlit/secrets.toml
+GOOGLE_API_KEY = "SENIN_API_ANAHTARIN"
+```
+
+**3. Uygulamayı başlat:**
+
+```bash
+streamlit run app.py
+```
+
+Tarayıcında `http://localhost:8501` adresi açılacak. Repo, [Streamlit Community Cloud](https://streamlit.io/cloud) veya [Hugging Face Spaces](https://huggingface.co/spaces) gibi ücretsiz platformlara doğrudan bağlanarak da yayınlanabilir; bu durumda API anahtarı platformun *secrets* ayarına eklenir.
+
+## Klasör yapısı
+
+```
+├── app.py               # Streamlit arayüzü + RAG zinciri
+├── requirements.txt     # Bağımlılıklar
+├── mental_health.csv    # Ek veri dosyası
+├── çalışma klavuzu.txt  # Kısa kurulum notları
+├── LICENSE
+└── README.md
+```
+
+## Veri
+
+[Mental Health FAQ for Chatbot](https://www.kaggle.com/datasets/narendgeek/mental-health-faq-for-chatbot) (Kaggle): Ruh sağlığı konularındaki sık sorulan sorular (`Questions`) ve bunlara verilmiş açıklayıcı cevaplardan (`Answers`) oluşur. RAG'in geri getirme adımında her `Answers` metni ayrı bir doküman olarak indekslenir.
+
+## Sınırlılıklar ve sonraki adımlar
+
+- **Tıbbi tavsiye değildir.** Asistan bilgilendirme amaçlıdır; arayüze kriz durumları için profesyonel destek ve acil yardım hatlarını gösteren bir uyarı eklenmesi planlanıyor.
+- **Değerlendirme.** Yanıt kalitesi şu an manuel olarak kontrol ediliyor. RAGAS gibi bir çerçeveyle *faithfulness* ve *context relevance* metrikleri ölçülebilir.
+- **Daha iyi geri getirme.** Soru + cevap birlikte indekslenebilir, metin parçalama (chunking) ve yeniden sıralama (re-ranking) eklenebilir.
+- **Çok dilli kullanım.** Veri seti İngilizce; Türkçe sorular için çeviri katmanı veya çok dilli bir embedding modeli kullanılabilir.
+- **Kalıcı indeks.** FAISS indeksi diske kaydedilerek her açılışta yeniden embedding hesaplanması önlenebilir.
+
+---
+
+Bu proje [MIT lisansı](LICENSE) ile paylaşılmaktadır.
+
+**Mehmet Emre Ünlü** · [GitHub](https://github.com/Memreu) · [LinkedIn](https://www.linkedin.com/in/memreu) · [Kaggle](https://www.kaggle.com/memreu)
