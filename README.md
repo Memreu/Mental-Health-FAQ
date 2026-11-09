@@ -10,6 +10,11 @@
   <img src="https://img.shields.io/badge/lisans-MIT-lightgrey" alt="MIT">
 </p>
 
+<p align="center">
+  <a href="https://nbviewer.org/github/Memreu/Mental-Health-FAQ/blob/main/notebooks/rag_adim_adim.ipynb"><img src="https://img.shields.io/badge/📓_Adım_adım_notebook-nbviewer-F37626?logo=jupyter&logoColor=white" alt="nbviewer"></a>
+  <a href="https://colab.research.google.com/github/Memreu/Mental-Health-FAQ/blob/main/notebooks/rag_adim_adim.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open in Colab"></a>
+</p>
+
 Ruh sağlığıyla ilgili sorulara **yalnızca güvenilir bir SSS bilgi havuzuna dayanarak** yanıt veren, **Retrieval-Augmented Generation (RAG)** mimarisiyle geliştirilmiş bir sohbet asistanı. İlk sürümü *Akbank GenAI Bootcamp* kapsamında geliştirildi.
 
 Hassas bir alanda çalıştığı için üç ilke üzerine kurulu: **uydurmamak** (bağlamda cevap yoksa "bilgim yok" demek), **kaynak göstermek** (her yanıtın hangi SSS kaydından geldiğini göstermek) ve **güvenliği önceliklendirmek** (kriz ifadelerinde acil yardım bilgisini en üstte göstermek).
@@ -24,6 +29,7 @@ Hassas bir alanda çalıştığı için üç ilke üzerine kurulu: **uydurmamak*
 - [Öne çıkan özellikler](#öne-çıkan-özellikler)
 - [Mimari](#mimari)
 - [Değerlendirme](#değerlendirme)
+- [Adım adım notebook](#adım-adım-notebook)
 - [Güvenlik tasarımı](#güvenlik-tasarımı)
 - [Kurulum ve çalıştırma](#kurulum-ve-çalıştırma)
 - [Testler](#testler)
@@ -92,6 +98,21 @@ Gemini modunun sonuçlarını kendi API anahtarınla üretmek için:
 GOOGLE_API_KEY=... python evaluation/evaluate.py --mode gemini
 ```
 
+## Adım adım notebook
+
+Uygulamanın arkasındaki RAG hattı, aynı `rag.py` kodunu kullanan bir notebook'ta adım adım inceleniyor: [`notebooks/rag_adim_adim.ipynb`](notebooks/rag_adim_adim.ipynb)
+
+| # | Bölüm | Ne gösteriyor? |
+|---|---|---|
+| 1 | Veriyi tanıma | Cevap uzunlukları (%53'ü 1.200 karakterden uzun), konu dağılımı |
+| 2 | Parçalama | 98 cevabın 196 parçaya nasıl bölündüğü, neden her parçaya soru eklendiği |
+| 3 | Geri getirme | Örnek sorularda gelen parçalar ve benzerlik skorları |
+| 4 | Değerlendirme | hit@k / MRR, kaçırılan soruların nedenleri (eş anlamlılar, dil farkı) |
+| 5 | "Bilgi yok" eşiği | Eşiğe göre doğru ve yanlış reddetme oranları, seçilen eşiğin gerekçesi |
+| 6 | Gemini modu | API anahtarı varsa aynı ölçümlerin çok dilli embedding ile tekrarı |
+
+Notebook API anahtarı olmadan baştan sona çalışır; [nbviewer](https://nbviewer.org/github/Memreu/Mental-Health-FAQ/blob/main/notebooks/rag_adim_adim.ipynb)'da çıktılarıyla okunabilir, [Colab](https://colab.research.google.com/github/Memreu/Mental-Health-FAQ/blob/main/notebooks/rag_adim_adim.ipynb)'da tek tıkla açılır.
+
 ## Güvenlik tasarımı
 
 <p align="center"><img src="images/02_kriz_uyarisi.png" width="80%"></p>
@@ -129,7 +150,7 @@ Repo, [Streamlit Community Cloud](https://streamlit.io/cloud)'a doğrudan bağla
 ## Testler
 
 ```bash
-pip install -r requirements-dev.txt
+pip install -r requirements-dev.txt   # testler + notebook için
 pytest -q
 ```
 
@@ -142,6 +163,8 @@ Testler gerçek API çağrısı yapmaz: `DeterministicFakeEmbedding` ve `FakeLis
 ├── rag.py                         # RAG çekirdeği
 ├── data/
 │   └── Mental_Health_FAQ.csv      # 98 soru-cevaplık bilgi havuzu
+├── notebooks/
+│   └── rag_adim_adim.ipynb        # Veri, parçalama, geri getirme ve değerlendirme adım adım
 ├── evaluation/
 │   ├── eval_set.csv               # Elle yazılmış değerlendirme soruları
 │   └── evaluate.py                # hit@k / MRR hesaplama
