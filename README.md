@@ -1,128 +1,174 @@
-# 🧠 RAG Tabanlı Ruh Sağlığı Chatbotu
+# 🧠 RAG Tabanlı Ruh Sağlığı SSS Asistanı
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/LangChain-RAG-1C3C3C?logo=langchain&logoColor=white" alt="LangChain">
-  <img src="https://img.shields.io/badge/Google-Gemini-8E75B2?logo=googlegemini&logoColor=white" alt="Gemini">
+  <img src="https://img.shields.io/badge/Google-Gemini_3.6_Flash-8E75B2?logo=googlegemini&logoColor=white" alt="Gemini">
   <img src="https://img.shields.io/badge/FAISS-vektör_arama-2E5EAA" alt="FAISS">
   <img src="https://img.shields.io/badge/Streamlit-arayüz-FF4B4B?logo=streamlit&logoColor=white" alt="Streamlit">
+  <a href="https://github.com/Memreu/Mental-Health-FAQ/actions/workflows/tests.yml"><img src="https://github.com/Memreu/Mental-Health-FAQ/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
   <img src="https://img.shields.io/badge/lisans-MIT-lightgrey" alt="MIT">
 </p>
 
-Ruh sağlığıyla ilgili sorulara **yalnızca güvenilir bir bilgi havuzundaki** cevaplara dayanarak yanıt veren, **Retrieval-Augmented Generation (RAG)** mimarisiyle geliştirilmiş bir sohbet asistanı. *Akbank GenAI Bootcamp* kapsamında geliştirildi.
+Ruh sağlığıyla ilgili sorulara **yalnızca güvenilir bir SSS bilgi havuzuna dayanarak** yanıt veren, **Retrieval-Augmented Generation (RAG)** mimarisiyle geliştirilmiş bir sohbet asistanı. İlk sürümü *Akbank GenAI Bootcamp* kapsamında geliştirildi.
 
-Asistan, sorulan konu bilgi havuzunda yoksa tahmin yürütmek yerine açıkça **"Bu konuda bilgim bulunmuyor."** diyor. Hassas bir alanda halüsinasyonu önlemek projenin ana tasarım hedefi.
+Hassas bir alanda çalıştığı için üç ilke üzerine kurulu: **uydurmamak** (bağlamda cevap yoksa "bilgim yok" demek), **kaynak göstermek** (her yanıtın hangi SSS kaydından geldiğini göstermek) ve **güvenliği önceliklendirmek** (kriz ifadelerinde acil yardım bilgisini en üstte göstermek).
 
-> 🇬🇧 **In English:** A Retrieval-Augmented Generation chatbot that answers mental-health questions using only a curated FAQ knowledge base. Answers are embedded with Google embeddings and indexed in FAISS; for each question the top-3 most similar passages are retrieved and passed to Gemini with a grounding prompt that forces the model to say *"I don't have information on this"* when the context does not contain the answer. The app is served through a Streamlit chat interface, built with LangChain's LCEL.
+<p align="center"><img src="images/01_sohbet.png" width="90%"></p>
+
+> 🇬🇧 **In English:** A Retrieval-Augmented Generation chatbot that answers mental-health questions using only a curated 98-item FAQ knowledge base. Long answers are chunked, embedded with `gemini-embedding-001` and indexed in FAISS (cosine similarity, persisted to disk); the top-k passages are passed to Gemini 3.6 Flash with a grounding prompt that forces a fixed *"I don't have information on this"* reply when the context is insufficient. Every answer shows its sources, crisis messages trigger an emergency-help banner, and the app also runs **without an API key** in a local TF-IDF mode. The project includes 16 unit tests (fake LLM and embeddings, no API key needed), a hand-written retrieval evaluation set and GitHub Actions CI.
 
 <details>
 <summary><b>📑 İçindekiler</b></summary>
 
-- [Mimari](#mimari)
 - [Öne çıkan özellikler](#öne-çıkan-özellikler)
-- [Teknoloji yığını](#teknoloji-yığını)
+- [Mimari](#mimari)
+- [Değerlendirme](#değerlendirme)
+- [Güvenlik tasarımı](#güvenlik-tasarımı)
 - [Kurulum ve çalıştırma](#kurulum-ve-çalıştırma)
+- [Testler](#testler)
 - [Klasör yapısı](#klasör-yapısı)
 - [Veri](#veri)
 - [Sınırlılıklar ve sonraki adımlar](#sınırlılıklar-ve-sonraki-adımlar)
 
 </details>
 
-## Mimari
-
-```mermaid
-flowchart LR
-    subgraph prep["📚 Bilgi havuzu (bir kez, önbelleğe alınır)"]
-        A[Mental Health FAQ<br/>CSV] --> B[Her cevap =<br/>1 doküman]
-        B --> C[Google<br/>embedding modeli]
-        C --> D[(FAISS<br/>vektör indeksi)]
-    end
-    subgraph query["💬 Her soru için"]
-        Q[Kullanıcı sorusu] --> E[Soru embedding'i]
-        E --> D
-        D -->|en benzer 3 parça| F[Bağlam]
-        F --> P[Prompt şablonu<br/>yalnızca bağlamı kullan]
-        Q --> P
-        P --> G[Gemini LLM]
-        G --> H[Yanıt<br/>Streamlit sohbet ekranı]
-    end
-```
-
-1. **Hazırlık:** FAQ veri setindeki her cevap ayrı bir doküman olarak vektöre çevrilir ve FAISS indeksine yazılır. `st.cache_resource` sayesinde bu işlem uygulama açılışında yalnızca bir kez yapılır.
-2. **Geri getirme (Retrieval):** Kullanıcının sorusu aynı embedding modeliyle vektöre çevrilir ve anlamca en yakın **3** cevap bulunur.
-3. **Üretim (Generation):** Bulunan cevaplar bağlam olarak, kullanıcının sorusuyla birlikte Gemini'ye gönderilir. Prompt, modelin bağlam dışına çıkmasını yasaklar.
-
 ## Öne çıkan özellikler
 
 | | |
 |---|---|
-| 🛡️ **Halüsinasyon kontrolü** | Bağlamda cevap yoksa model sabit bir "bilgim yok" yanıtı verir |
-| ⚡ **Hızlı arama** | FAISS ile bellek içi anlamsal arama |
-| 🔗 **LCEL zinciri** | `retriever → prompt → llm → parser` şeklinde okunabilir, modüler RAG akışı |
-| 💬 **Sohbet geçmişi** | Streamlit `session_state` ile oturum boyunca mesajlar korunur |
-| 🔐 **Güvenli anahtar yönetimi** | API anahtarı koda değil `.streamlit/secrets.toml` dosyasına yazılır ve git'e eklenmez |
+| 🛡️ **Halüsinasyon kontrolü** | Prompt modeli yalnızca getirilen bağlamı kullanmaya zorlar; bağlam yetersizse sabit bir "bilgim yok" yanıtı döner ve kaynak gösterilmez |
+| 📚 **Kaynak gösterimi** | Her yanıtın altında kullanılan SSS kayıtları, benzerlik skorları ve alıntılarla listelenir |
+| 💛 **Kriz algılama** | Türkçe ve İngilizce intihar / kendine zarar ifadelerinde yanıtın üstünde acil yardım bilgisi gösterilir ve ilgili SSS önceliklendirilir |
+| 🌍 **Çok dilli** | Gemini modunda Türkçe sorular İngilizce bilgi havuzunda aranır ve yanıt Türkçe verilir |
+| 🔑 **Anahtarsız deneme** | API anahtarı yoksa uygulama yerel modda (TF-IDF + doğrudan SSS alıntısı) çalışmaya devam eder |
+| ⚡ **Kalıcı indeks** | Embedding'ler bir kez hesaplanıp diske kaydedilir; veri değişirse indeks otomatik yenilenir |
+| ✅ **Test ve CI** | 16 birim testi API anahtarı olmadan çalışır; her push'ta GitHub Actions ile test edilir |
 
-## Teknoloji yığını
+## Mimari
 
-| Katman | Araç |
+```mermaid
+flowchart LR
+    subgraph prep["📚 Bilgi havuzu (bir kez, diske kaydedilir)"]
+        A[98 SSS kaydı] --> B[Parçalama<br/>1200 karakter, soru her parçada]
+        B --> C[gemini-embedding-001]
+        C --> D[(FAISS<br/>kosinüs benzerliği)]
+    end
+    subgraph query["💬 Her soru için"]
+        Q[Kullanıcı sorusu] --> K{Kriz ifadesi?}
+        K -->|evet| W[Acil yardım uyarısı]
+        Q --> E[Soru embedding'i]
+        E --> D
+        D -->|en benzer k parça| P[Prompt: yalnızca bağlamı kullan,<br/>kaynak numarası ver]
+        P --> G[Gemini 3.6 Flash]
+        G --> H[Yanıt + kaynaklar]
+    end
+```
+
+| Dosya | Görev |
 |---|---|
-| RAG çatısı | LangChain (LCEL) |
-| Dil modeli | Google Gemini (`ChatGoogleGenerativeAI`) |
-| Embedding | Google Generative AI Embeddings |
-| Vektör veritabanı | FAISS (yerel, bellek içi) |
-| Arayüz | Streamlit |
-| Veri işleme | pandas |
+| `rag.py` | Veri yükleme, parçalama, FAISS / TF-IDF geri getirme, prompt, kriz algılama, `RAGPipeline` |
+| `app.py` | Streamlit sohbet arayüzü, ayarlar, kaynak ve uyarı gösterimi |
+| `evaluation/` | Elle yazılmış soru seti ve geri getirme değerlendirme betiği |
+| `tests/` | Sahte embedding ve sahte LLM ile birim testleri |
+
+## Değerlendirme
+
+Geri getirme kalitesi, bilgi havuzundaki sorulardan **farklı kelimelerle** elle yazılmış 33 kapsam içi (25 İngilizce, 8 Türkçe) ve 6 kapsam dışı soruyla ölçülüyor ([`evaluation/eval_set.csv`](evaluation/eval_set.csv)).
+
+**Yerel mod (TF-IDF, API anahtarı gerektirmez):**
+
+| Dil | Soru | hit@1 | hit@3 | MRR |
+|---|---:|---:|---:|---:|
+| İngilizce | 25 | 0,80 | 0,88 | 0,84 |
+| Türkçe | 8 | 0,12 | 0,12 | 0,12 |
+
+- Kapsam dışı soruların **6/6**'sında doğru şekilde "bilgi yok" deniyor.
+- Kelime tabanlı arama Türkçe soruları İngilizce metinle eşleştiremiyor; bu, çok dilli embedding kullanan **Gemini modunun** neden gerekli olduğunu gösteriyor.
+
+Gemini modunun sonuçlarını kendi API anahtarınla üretmek için:
+
+```bash
+GOOGLE_API_KEY=... python evaluation/evaluate.py --mode gemini
+```
+
+## Güvenlik tasarımı
+
+<p align="center"><img src="images/02_kriz_uyarisi.png" width="80%"></p>
+
+- **Kriz algılama:** "intihar", "kendime zarar", "ending my life" gibi ifadeler düzenli ifadelerle yakalanır. Bu durumda yanıtın üstünde Türkiye için **112** ve uluslararası destek hatları için [findahelpline.com](https://findahelpline.com) gösterilir; arama sorgusu intihar SSS kaydını bulacak şekilde güçlendirilir.
+- **Tanı ve doz yok:** Sistem promptu modelin tanı koymasını ve ilaç dozu önermesini yasaklar, uygun durumlarda uzmana yönlendirir.
+- **Anahtar güvenliği:** API anahtarı `.streamlit/secrets.toml` veya ortam değişkeninden okunur; bu dosya `.gitignore`'dadır.
 
 ## Kurulum ve çalıştırma
 
 ```bash
 git clone https://github.com/Memreu/Mental-Health-FAQ.git
 cd Mental-Health-FAQ
-
 python -m venv venv
 source venv/bin/activate          # Windows: .\venv\Scripts\activate
 pip install -r requirements.txt
-```
-
-**1. Veriyi ekle:** Kaggle'daki [Mental Health FAQ for Chatbot](https://www.kaggle.com/datasets/narendgeek/mental-health-faq-for-chatbot) veri setini indirip `Mental_Health_FAQ.csv` dosyasını proje klasörüne koy.
-
-**2. API anahtarını tanımla:** [Google AI Studio](https://aistudio.google.com/app/apikey)'dan bir Gemini API anahtarı al ve şu dosyayı oluştur:
-
-```toml
-# .streamlit/secrets.toml
-GOOGLE_API_KEY = "SENIN_API_ANAHTARIN"
-```
-
-**3. Uygulamayı başlat:**
-
-```bash
 streamlit run app.py
 ```
 
-Tarayıcında `http://localhost:8501` adresi açılacak. Repo, [Streamlit Community Cloud](https://streamlit.io/cloud) veya [Hugging Face Spaces](https://huggingface.co/spaces) gibi ücretsiz platformlara doğrudan bağlanarak da yayınlanabilir; bu durumda API anahtarı platformun *secrets* ayarına eklenir.
+Uygulama bu haliyle **yerel modda** açılır. Gemini moduna geçmek için [Google AI Studio](https://aistudio.google.com/app/apikey)'dan ücretsiz bir API anahtarı al ve örnek dosyayı kopyala:
+
+```bash
+cp .streamlit/secrets.toml.example .streamlit/secrets.toml
+# secrets.toml içine GOOGLE_API_KEY = "..." yaz
+```
+
+| Ayar (`secrets.toml` veya ortam değişkeni) | Varsayılan |
+|---|---|
+| `GOOGLE_API_KEY` | — (yoksa yerel mod) |
+| `GEMINI_MODEL` | `gemini-3.6-flash` |
+| `GEMINI_EMBEDDING_MODEL` | `gemini-embedding-001` |
+
+Repo, [Streamlit Community Cloud](https://streamlit.io/cloud)'a doğrudan bağlanarak da yayınlanabilir; API anahtarı platformun *Secrets* ayarına eklenir.
+
+## Testler
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q
+```
+
+Testler gerçek API çağrısı yapmaz: `DeterministicFakeEmbedding` ve `FakeListChatModel` ile veri yükleme, parçalama, yerel ve LLM modları, "bilgi yok" davranışı, kriz algılama, indeksin diske kaydedilip yeniden kullanılması ve Gemini ayarları doğrulanır.
 
 ## Klasör yapısı
 
 ```
-├── app.py               # Streamlit arayüzü + RAG zinciri
-├── requirements.txt     # Bağımlılıklar
-├── mental_health.csv    # Ek veri dosyası
-├── çalışma klavuzu.txt  # Kısa kurulum notları
+├── app.py                         # Streamlit arayüzü
+├── rag.py                         # RAG çekirdeği
+├── data/
+│   └── Mental_Health_FAQ.csv      # 98 soru-cevaplık bilgi havuzu
+├── evaluation/
+│   ├── eval_set.csv               # Elle yazılmış değerlendirme soruları
+│   └── evaluate.py                # hit@k / MRR hesaplama
+├── tests/
+│   └── test_rag.py                # Birim testleri
+├── .streamlit/
+│   ├── config.toml                # Tema
+│   └── secrets.toml.example       # API anahtarı şablonu
+├── .github/workflows/tests.yml    # CI
+├── images/                        # README ekran görüntüleri
+├── requirements.txt
+├── requirements-dev.txt
 ├── LICENSE
 └── README.md
 ```
 
 ## Veri
 
-[Mental Health FAQ for Chatbot](https://www.kaggle.com/datasets/narendgeek/mental-health-faq-for-chatbot) (Kaggle): Ruh sağlığı konularındaki sık sorulan sorular (`Questions`) ve bunlara verilmiş açıklayıcı cevaplardan (`Answers`) oluşur. RAG'in geri getirme adımında her `Answers` metni ayrı bir doküman olarak indekslenir.
+[Mental Health FAQ for Chatbot](https://www.kaggle.com/datasets/narendgeek/mental-health-faq-for-chatbot) (Kaggle): Ruh sağlığı konularında 98 soru (`Questions`) ve açıklayıcı cevap (`Answers`). İçerik büyük ölçüde Kanada'daki [HeretoHelp](https://www.heretohelp.bc.ca/questions-and-answers) ve benzeri kuruluşların SSS sayfalarından derlenmiştir. Cevaplar 93 ile 8.500 karakter arasında değiştiği için 1.200 karakterlik parçalara bölünür ve her parçanın başına ait olduğu soru eklenir.
 
 ## Sınırlılıklar ve sonraki adımlar
 
-- **Tıbbi tavsiye değildir.** Asistan bilgilendirme amaçlıdır; arayüze kriz durumları için profesyonel destek ve acil yardım hatlarını gösteren bir uyarı eklenmesi planlanıyor.
-- **Değerlendirme.** Yanıt kalitesi şu an manuel olarak kontrol ediliyor. RAGAS gibi bir çerçeveyle *faithfulness* ve *context relevance* metrikleri ölçülebilir.
-- **Daha iyi geri getirme.** Soru + cevap birlikte indekslenebilir, metin parçalama (chunking) ve yeniden sıralama (re-ranking) eklenebilir.
-- **Çok dilli kullanım.** Veri seti İngilizce; Türkçe sorular için çeviri katmanı veya çok dilli bir embedding modeli kullanılabilir.
-- **Kalıcı indeks.** FAISS indeksi diske kaydedilerek her açılışta yeniden embedding hesaplanması önlenebilir.
+- **Tıbbi tavsiye değildir.** Asistan bilgilendirme amaçlıdır ve profesyonel desteğin yerini tutmaz.
+- **Bölgesel içerik.** Bilgi havuzundaki yardım hatları ve kurumlar Kanada'ya (British Columbia) özgü. Türkiye'deki kaynaklarla (ör. ruh sağlığı merkezleri, MHRS) genişletilmesi planlanıyor.
+- **Gemini modu değerlendirmesi.** Yerel mod sonuçları yukarıda; Gemini modunun geri getirme ve yanıt kalitesi (ör. RAGAS ile *faithfulness*) API anahtarıyla ayrıca ölçülmeli.
+- **Kriz algılama kural tabanlı.** Anahtar kelime listesi dolaylı ifadeleri kaçırabilir; küçük bir sınıflandırıcı veya LLM tabanlı ikinci kontrol eklenebilir.
+- **Sohbet bağlamı.** Her soru bağımsız işleniyor; takip sorularını önceki mesajlarla birlikte yeniden yazan bir adım (query rewriting) eklenebilir.
 
 ---
 

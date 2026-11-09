@@ -1,0 +1,18 @@
+# API anahtarı: asla commit'leme
+.streamlit/secrets.toml
+
+# Oluşturulan FAISS indeksi
+.faiss_index/
+
+# Jupyter / Python
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+.env
+
+# İşletim sistemi
+.DS_Store
+Thumbs.db
