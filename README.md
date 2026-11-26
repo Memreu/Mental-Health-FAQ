@@ -29,13 +29,13 @@ Kapsam dışı 6 sorunun 6'sında da doğru şekilde "bilgi yok" deniyor. Türk�
 GOOGLE_API_KEY=... python evaluation/evaluate.py --mode gemini
 ```
 
-Veriyi tanımadan eşik seçimine kadar bütün adımları [`notebooks/rag_adim_adim.ipynb`](notebooks/rag_adim_adim.ipynb) içinde aynı `rag.py` koduyla tek tek gösterdim. Notebook API anahtarı olmadan çalışıyor; [nbviewer](https://nbviewer.org/github/Memreu/mental-health-faq-rag/blob/main/notebooks/rag_adim_adim.ipynb) üzerinden çıktılarıyla okunabilir.
+Veriyi tanımadan eşik seçimine kadar bütün adımları [`notebooks/rag_adim_adim.ipynb`](notebooks/rag_adim_adim.ipynb) içinde aynı `rag.py` koduyla tek tek gösterdim. Notebook API anahtarı olmadan çalışıyor; [nbviewer](https://nbviewer.org/github/Memreu/Mental-Health-FAQ/blob/main/notebooks/rag_adim_adim.ipynb) üzerinden çıktılarıyla okunabilir.
 
 ## Çalıştırma
 
 ```bash
-git clone https://github.com/Memreu/mental-health-faq-rag.git
-cd mental-health-faq-rag
+git clone https://github.com/Memreu/Mental-Health-FAQ.git
+cd Mental-Health-FAQ
 pip install -r requirements.txt
 streamlit run app.py
 ```
